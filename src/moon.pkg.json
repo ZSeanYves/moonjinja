@@ -1,5 +1,4 @@
 {
-  "import": [
-    "ZSeanYves/moonjinja/lib"
-  ]
+  "is-main": false,
+  "import": []
 }
