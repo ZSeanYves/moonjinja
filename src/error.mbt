@@ -3,8 +3,14 @@ type! LexerError {
   UnterminatedTag(String)
   InvalidToken(String)
 }
-type!ParseError{
+type! ParseError{
   UnexpectedToken(String)
-  UnexpectedEOF
+  UnexpectedEOF(String)
   InvalidSyntax(String)
+}
+
+type! RenderError {
+  MissingVariable(String)
+  UnsupportedOperator(String)
+  InvalidIteration(String)
 }
