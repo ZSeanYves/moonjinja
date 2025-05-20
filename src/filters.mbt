@@ -38,3 +38,17 @@ pub fn get_filter(name: String) -> Option[Filter] {
     return None
   }
 }
+
+
+pub fn escape_html(input: String) -> String {
+  let mut result = input
+  result = result.replace(old="&", new="&amp;")
+  result = result.replace(old="<", new="&lt;")
+  result = result.replace(old=">", new="&gt;")
+  result = result.replace(old="\"", new="&quot;")
+  result = result.replace(old="'", new="&#39;")
+  return result
+}
+
+
+

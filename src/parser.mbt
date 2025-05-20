@@ -5,6 +5,10 @@ fn parse(tokens: Array[Token]) -> Expr!JinjaError {
 }
 
 fn parse_template(tokens: Array[Token], i: Ref[Int], len: Int) -> Expr!JinjaError {
+  // 检查是否是 extends 开头
+  if i.val + 2 < len && tokens[i.val] == BlockStart && tokens[i.val + 1] == Identifier("extends") {
+    return parse_extends!(tokens, i, len)
+  }
   let body = parse_expr_list!(tokens, i, len)
   return Sequence(body)
 }
@@ -24,6 +28,14 @@ fn parse_expr_list(tokens: Array[Token], i: Ref[Int], len: Int) -> Array[Expr]!J
           let expr = parse_for_block!(tokens, i, len)
           exprs.push(expr)
         }
+        Identifier("include") => {
+          let expr = parse_include!(tokens, i, len)
+          exprs.push(expr)
+        }
+        Identifier("block") => {
+          let expr = parse_block!(tokens, i, len)
+          exprs.push(expr)
+        }
         _ => raise ParseError("Unknown block tag")
       }
     } else {
@@ -33,6 +45,7 @@ fn parse_expr_list(tokens: Array[Token], i: Ref[Int], len: Int) -> Array[Expr]!J
   }
   return exprs
 }
+
 
 fn parse_expr(tokens: Array[Token], i: Ref[Int], len: Int) -> Expr!JinjaError {
   return parse_binary_expr!(tokens, i, len, 1)
@@ -236,5 +249,45 @@ fn parse_block(tokens: Array[Token], i: Ref[Int], len: Int) -> Expr!JinjaError {
       return BlockNode(name, body)
     }
     _ => raise ParseError("Expected block name")
+  }
+}
+
+fn parse_extends(tokens: Array[Token], i: Ref[Int], len: Int) -> Expr!JinjaError {
+  advance(i)  // 跳过 BlockStart
+  let tok = peek(tokens, i.val)
+  match tok {
+    Literal(filename) => {
+      advance(i)
+      if peek(tokens, i.val) != BlockEnd {
+        raise ParseError("Expected '%}' after extends")
+      }
+      advance(i)
+
+      // 收集所有 block 定义
+      let blocks = Map::new()
+      while i.val < len && not(peek(tokens, i.val) == EOF) {
+        if peek(tokens, i.val) == BlockStart {
+          let next = if i.val + 1 < len { tokens[i.val + 1] } else { EOF }
+          if next == Identifier("block") {
+            let block_expr = parse_block!(tokens, i, len)
+            match block_expr {
+              BlockNode(name, content) => {
+                blocks[name] = content
+              }
+              _ => raise ParseError("Expected block node")
+            }
+          } else {
+            // extends 模板中不能有非 block 结构
+            raise ParseError("Only 'block' allowed in child template with extends")
+          }
+        } else {
+          // 非 block 开头也非法
+          raise ParseError("Unexpected content in child template with extends")
+        }
+      }
+
+      return ExtendsNode(filename, blocks)
+    }
+    _ => raise ParseError("Expected file name after 'extends'")
   }
 }

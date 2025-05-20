@@ -2,7 +2,6 @@ fn render(expr: Expr, context: Map[String, Value]) -> String!JinjaError {
   match expr {
     TextNode(s) => return s
     VariableNode(name) => {
-      // 支持 {{ var | filter }} 格式
       let parts = name.split("|").to_array()
       let var_name = parts[0].trim("").to_string()
       let filter_name = if parts.length() > 1 { parts[1].trim("").to_string() } else { "" }
@@ -11,14 +10,19 @@ fn render(expr: Expr, context: Map[String, Value]) -> String!JinjaError {
         Some(v) => {
           let base = value_to_string(v)
           if filter_name == "" {
-            return base
+            if safe_Mode {
+              return escape_html(base)
+            } else {
+              return base
+            }
           } else {
-          match get_filter(filter_name) {
-            Some(Upper) => return filter_upper(base)
-            Some(Lower) => return filter_lower(base)
-            Some(Trim) => return filter_trim(base)
-            None => raise RenderError("Unknown filter: " + filter_name)
-          }
+            match get_filter(filter_name) {
+              Some(Upper) => return filter_upper(base)
+              Some(Lower) => return filter_lower(base)
+              Some(Trim) => return filter_trim(base)
+              // 可选：支持 | safe
+              None => raise RenderError("Unknown filter: " + filter_name)
+            }
           }
         }
         None => raise RenderError("Variable not found: " + var_name)
@@ -58,6 +62,12 @@ fn render(expr: Expr, context: Map[String, Value]) -> String!JinjaError {
     }
     BlockNode(_, body) => {
      return render_sequence!(body, context)
+    }
+    ExtendsNode(parent, child_blocks) => {
+      let parent_src = load_template!(parent)
+      let parent_ast = parse!(tokenize!(parent_src))
+      let merged = merge_blocks(parent_ast, child_blocks)
+      return render!(merged, context)
     }
   }
 }
@@ -108,3 +118,23 @@ fn expr_to_key(expr: Expr) -> String {
     _ => return ""
   }
 }
+
+fn merge_blocks(expr: Expr, overrides: Map[String, Array[Expr]]) -> Expr {
+  match expr {
+    BlockNode(name, _) => {
+      match overrides.get(name) {
+        Some(body) => return BlockNode(name, body)
+        None => return expr
+      }
+    }
+    Sequence(exprs) => {
+      let merged = []
+      for e in exprs {
+        merged.push(merge_blocks(e, overrides))
+      }
+      return Sequence(merged)
+    }
+    _ => return expr
+  }
+}
+

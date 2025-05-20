@@ -24,6 +24,7 @@ pub enum Expr {
   IncludeNode(String)
   BlockNode(String, Array[Expr])
   Sequence(Array[Expr])
+  ExtendsNode(String, Map[String, Array[Expr]])
 }
 
 pub enum Value {
