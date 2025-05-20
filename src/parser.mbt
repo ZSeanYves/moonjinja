@@ -188,3 +188,53 @@ fn get_precedence(op: String) -> Int {
     _ => 0
   }
 }
+
+/// 解析 include
+fn parse_include(tokens: Array[Token], i: Ref[Int], len: Int) -> Expr!JinjaError {
+  advance(i)
+  let tok = peek(tokens, i.val)
+  match tok {
+    Literal(filename) => {
+      advance(i)
+      if peek(tokens, i.val) != BlockEnd {
+        raise ParseError("Expected '%}' after include")
+      }
+      advance(i)
+      return IncludeNode(filename)
+    }
+    _ => raise ParseError("Expected file name in include")
+  }
+}
+
+/// 解析 block
+fn parse_block(tokens: Array[Token], i: Ref[Int], len: Int) -> Expr!JinjaError {
+  advance(i)
+  let tok = peek(tokens, i.val)
+  match tok {
+    Identifier(name) => {
+      advance(i)
+      if peek(tokens, i.val) != BlockEnd {
+        raise ParseError("Expected '%}' after block name")
+      }
+      advance(i)
+
+      let body = parse_expr_list!(tokens, i, len)
+
+      if peek(tokens, i.val) == BlockStart {
+        advance(i)
+        if peek(tokens, i.val) != Identifier("endblock") {
+          raise ParseError("Expected 'endblock'")
+        }
+        advance(i)
+        if peek(tokens, i.val) != BlockEnd {
+          raise ParseError("Expected '%}' after 'endblock'")
+        }
+        advance(i)
+      } else {
+        raise ParseError("Expected '{% endblock %}'")
+      }
+      return BlockNode(name, body)
+    }
+    _ => raise ParseError("Expected block name")
+  }
+}

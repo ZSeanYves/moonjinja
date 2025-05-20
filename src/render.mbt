@@ -2,11 +2,29 @@ fn render(expr: Expr, context: Map[String, Value]) -> String!JinjaError {
   match expr {
     TextNode(s) => return s
     VariableNode(name) => {
-      match context.get(name) {
-        Some(v) => return value_to_string(v)
-        None => raise RenderError("Variable not found: " + name)
+      // 支持 {{ var | filter }} 格式
+      let parts = name.split("|").to_array()
+      let var_name = parts[0].trim("").to_string()
+      let filter_name = if parts.length() > 1 { parts[1].trim("").to_string() } else { "" }
+
+      match context.get(var_name) {
+        Some(v) => {
+          let base = value_to_string(v)
+          if filter_name == "" {
+            return base
+          } else {
+          match get_filter(filter_name) {
+            Some(Upper) => return filter_upper(base)
+            Some(Lower) => return filter_lower(base)
+            Some(Trim) => return filter_trim(base)
+            None => raise RenderError("Unknown filter: " + filter_name)
+          }
+          }
+        }
+        None => raise RenderError("Variable not found: " + var_name)
       }
     }
+
     LiteralNode(s) => return s
     BinaryOp(lhs, op, rhs) => {
       let left = render!(lhs, context)
@@ -32,6 +50,15 @@ fn render(expr: Expr, context: Map[String, Value]) -> String!JinjaError {
       return result.join("")
     }
     Sequence(exprs) => return render_sequence!(exprs, context)
+    IncludeNode(filename) => {
+      let tpl = load_template!(filename)
+      let tokens = tokenize!(tpl)
+      let ast = parse!(tokens)
+      return render!(ast, context)
+    }
+    BlockNode(_, body) => {
+     return render_sequence!(body, context)
+    }
   }
 }
 
