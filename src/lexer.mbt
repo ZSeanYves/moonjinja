@@ -104,13 +104,12 @@ fn tokenize(source: String) -> Array[Token]!JinjaError {
       tokens.push(VarEnd(strip_right))
       i += 2
 
-    // --- Block tag: {% or {%-
     } else if i + 1 < len && chars[i] == '{' && chars[i + 1] == '%' {
       let strip_left = (i > 0 && chars[i - 1] == '-')
       tokens.push(BlockStart(strip_left))
       i += if strip_left { 3 } else { 2 }
 
-      // Tokenize contents inside {% ... %}
+      // 读取 block 内容直到 %} 出现
       while i + 1 < len && not(chars[i] == '%' && chars[i + 1] == '}') {
         while i < len && " \n\t".to_array().contains(chars[i]) {
           i += 1
@@ -144,11 +143,18 @@ fn tokenize(source: String) -> Array[Token]!JinjaError {
         }
       }
 
-      let strip_right = (i > 0 && chars[i - 1] == '-')
-      tokens.push(BlockEnd(strip_right))
-      i += 2
+      if i + 1 >= len {
+        raise LexerError("Unterminated block tag")
+      }
 
-    // --- Comment tag: {# ... #}
+      // 检查是否是 -%}
+      let strip_right = (i >= 2 && chars[i - 1] == '-' && chars[i] == '%')
+      tokens.push(BlockEnd(strip_right))
+
+      i += if strip_right { 3 } else { 2 }
+      continue
+    
+    // --- Comment tag: {# ... #} ---
     } else if i + 1 < len && chars[i] == '{' && chars[i + 1] == '#' {
       i += 2
       while i + 1 < len && not(chars[i] == '#' && chars[i + 1] == '}') {

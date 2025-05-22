@@ -1,8 +1,4 @@
 {
   "is-main": false,
-  "link": {
-    "native": {
-      "cc-link-flags": "-lreadfile"
-    }
-  }
+  "import": []
 }

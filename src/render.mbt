@@ -31,7 +31,7 @@ fn render(expr: Expr, context: Map[String, Value]) -> String!JinjaError {
         Some(v) => {
           let base = value_to_string(v)
           if filter_name == "" {
-            if safe_Mode {
+            if is_safe_mode() {
               return escape_html(base)
             } else {
               return base
