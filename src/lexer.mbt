@@ -1,10 +1,27 @@
+// Token types used by the lexer
+pub enum Token  {
+  Text(String)               // Plain text
+  VarStart(Bool)             // Start of a variable tag: {{ or {{- (with strip_left)
+  VarEnd(Bool)               // End of a variable tag: }} or -}}
+  BlockStart(Bool)           // Start of a control block: {% or {%- (with strip_left)
+  BlockEnd(Bool)             // End of a control block: %} or -%}
+  CommentStart               // Start of a comment tag: {#
+  CommentEnd                 // End of a comment tag: #}
+  Identifier(String)         // Keywords or variable names
+  Literal(String)            // String or numeric literals
+  Operator(String)           // Operators: ==, +, -, etc.
+  Delimiter(Char)            // Symbols: (, ), :, ., ,
+  EOF                        // End of input
+}
+
+// Equality comparison for tokens
 impl Eq for Token with op_equal(self, other) {
   match (self, other) {
     (Text(s1), Text(s2)) => s1 == s2
-    (VarStart, VarStart) => true
-    (VarEnd, VarEnd) => true
-    (BlockStart, BlockStart) => true
-    (BlockEnd, BlockEnd) => true
+    (VarStart(a), VarStart(b)) => a == b
+    (VarEnd(a), VarEnd(b)) => a == b
+    (BlockStart(a), BlockStart(b)) => a == b
+    (BlockEnd(a), BlockEnd(b)) => a == b
     (CommentStart, CommentStart) => true
     (CommentEnd, CommentEnd) => true
     (Identifier(s1), Identifier(s2)) => s1 == s2
@@ -16,11 +33,14 @@ impl Eq for Token with op_equal(self, other) {
   }
 }
 
+// Convert a token to its string representation (for debugging)
 fn token_to_string(tok: Token) -> String {
   match tok {
     Text(s) => "Text(" + s + ")"
-    VarStart => "VarStart"
-    VarEnd => "VarEnd"
+    VarStart(strip) => "VarStart(" + strip.to_string() + ")"
+    VarEnd(strip) => "VarEnd(" + strip.to_string() + ")"
+    BlockStart(strip) => "BlockStart(" + strip.to_string() + ")"
+    BlockEnd(strip) => "BlockEnd(" + strip.to_string() + ")"
     Identifier(s) => "Identifier(" + s + ")"
     Literal(s) => "Literal(" + s + ")"
     EOF => "EOF"
@@ -29,6 +49,7 @@ fn token_to_string(tok: Token) -> String {
 }
 
 
+// Main lexer function: converts source string into a list of tokens
 fn tokenize(source: String) -> Array[Token]!JinjaError {
   let tokens = []
   let chars = source.to_array()
@@ -39,14 +60,15 @@ fn tokenize(source: String) -> Array[Token]!JinjaError {
   let len = chars.length()
 
   while i < len {
+    // --- Variable tag: {{ or {{- ---
     if i + 1 < len && chars[i] == '{' && chars[i + 1] == '{' {
-      tokens.push(VarStart)
-      i += 2
+      let strip_left = (i > 0 && chars[i - 1] == '-')
+      tokens.push(VarStart(strip_left))
+      i += if strip_left { 3 } else { 2 }
 
-      // 解析表达式直到 }}
+      // Tokenize contents inside {{ ... }}
       while i + 1 < len && not(chars[i] == '}' && chars[i + 1] == '}') {
-        // 跳过空白符
-        while i < len && (chars[i] == ' ' || chars[i] == '\n' || chars[i] == '\t') {
+        while i < len && " \n\t".to_array().contains(chars[i]) {
           i += 1
         }
         if i >= len {
@@ -54,9 +76,8 @@ fn tokenize(source: String) -> Array[Token]!JinjaError {
         }
 
         let c = chars[i]
-
         if c == '"' || c == '\'' {
-          let (token, new_i) = (read_string!(chars, i))
+          let (token, new_i) = read_string!(chars, i)
           tokens.push(token)
           i = new_i
         } else if ('a' <= c && c <= 'z') || ('A' <= c && c <= 'Z') || c == '_' {
@@ -79,16 +100,19 @@ fn tokenize(source: String) -> Array[Token]!JinjaError {
         }
       }
 
+      let strip_right = (i > 0 && chars[i - 1] == '-')
+      tokens.push(VarEnd(strip_right))
       i += 2
-      tokens.push(VarEnd)
 
+    // --- Block tag: {% or {%-
     } else if i + 1 < len && chars[i] == '{' && chars[i + 1] == '%' {
-      tokens.push(BlockStart)
-      i += 2
+      let strip_left = (i > 0 && chars[i - 1] == '-')
+      tokens.push(BlockStart(strip_left))
+      i += if strip_left { 3 } else { 2 }
 
-      // 同样处理 block 表达式
+      // Tokenize contents inside {% ... %}
       while i + 1 < len && not(chars[i] == '%' && chars[i + 1] == '}') {
-        while i < len && (chars[i] == ' ' || chars[i] == '\n' || chars[i] == '\t') {
+        while i < len && " \n\t".to_array().contains(chars[i]) {
           i += 1
         }
         if i >= len {
@@ -96,7 +120,6 @@ fn tokenize(source: String) -> Array[Token]!JinjaError {
         }
 
         let c = chars[i]
-
         if c == '"' || c == '\'' {
           let (token, new_i) = read_string!(chars, i)
           tokens.push(token)
@@ -121,9 +144,11 @@ fn tokenize(source: String) -> Array[Token]!JinjaError {
         }
       }
 
+      let strip_right = (i > 0 && chars[i - 1] == '-')
+      tokens.push(BlockEnd(strip_right))
       i += 2
-      tokens.push(BlockEnd)
 
+    // --- Comment tag: {# ... #}
     } else if i + 1 < len && chars[i] == '{' && chars[i + 1] == '#' {
       i += 2
       while i + 1 < len && not(chars[i] == '#' && chars[i + 1] == '}') {
@@ -135,22 +160,11 @@ fn tokenize(source: String) -> Array[Token]!JinjaError {
       i += 2
       tokens.push(CommentEnd)
 
-    } else if i + 1 < len && chars[i] == '}' && chars[i + 1] == '}' {
-      tokens.push(VarEnd)
-      i += 2
-    } else if i + 1 < len && chars[i] == '%' && chars[i + 1] == '}' {
-      tokens.push(BlockEnd)
-      i += 2
-    } else if i + 1 < len && chars[i] == '#' && chars[i + 1] == '}' {
-      tokens.push(CommentEnd)
-      i += 2
-    } else if chars[i] == '{' {
-      raise LexerError("Unexpected '{'")
+    // --- Plain text ---
     } else {
       let start = i
-      while i < len &&
-            not(i + 1 < len && chars[i] == '{' && (
-              chars[i + 1] == '{' || chars[i + 1] == '%' || chars[i + 1] == '#')) {
+      while i < len && not(i + 1 < len && chars[i] == '{' &&
+        ("{#%".to_array().contains(chars[i + 1]))) {
         i += 1
       }
       let text_chars = []
@@ -167,6 +181,8 @@ fn tokenize(source: String) -> Array[Token]!JinjaError {
 }
 
 
+
+// Read a quoted string like "hello"
 fn read_string(chars: Array[Char], i: Int) -> (Token, Int)!JinjaError {
   let quote = chars[i]
   let j = i + 1
@@ -185,10 +201,12 @@ fn read_string(chars: Array[Char], i: Int) -> (Token, Int)!JinjaError {
   let s = String::from_array(str_chars)
   return (Literal(s), k + 1)
 }
+
+// Read an operator like ==, !=, and, or, not
 fn read_operator(chars: Array[Char], i: Int) -> (Token, Int)!JinjaError {
   let len = chars.length()
 
-  // 两字符运算符优先匹配
+  // Two-character operators first
   if i + 1 < len {
     let c1 = chars[i]
     let c2 = chars[i + 1]
@@ -202,7 +220,7 @@ fn read_operator(chars: Array[Char], i: Int) -> (Token, Int)!JinjaError {
     }
   }
 
-  // 关键字运算符：and, or, not
+  // Keyword operators
   let try_keywords = ["and", "or", "not"]
   for kw in try_keywords {
     let chars_kw = kw.to_array()
@@ -213,27 +231,27 @@ fn read_operator(chars: Array[Char], i: Int) -> (Token, Int)!JinjaError {
       for j in 0..<len_kw {
         slice.push(chars[i + j])
       }
-    if slice == chars_kw {
-      let op_str = kw
-      return (Operator(op_str), i + len_kw)
+      if slice == chars_kw {
+        return (Operator(kw), i + len_kw)
+      }
     }
   }
-  }
-  // 单字符运算符
+
+  // One-character operators
   let one_char_ops = ['+', '-', '*', '/', '%', '=', '>', '<', '!']
   if one_char_ops.contains(chars[i]) {
-    let op_str = String::from_array([chars[i]])
-    return (Operator(op_str), i + 1)
+    return (Operator(String::from_array([chars[i]])), i + 1)
   }
 
-  // 否则不是运算符
   raise LexerError("Unrecognized operator near: " + String::from_array([chars[i]]))
 }
 
+// Read delimiters like (, ), :, ., ,
 fn read_delimiter(c: Char) -> Token {
   return Delimiter(c)
 }
 
+// Read identifiers like variable or keyword names
 fn read_identifier(chars: Array[Char], i: Int) -> (Token, Int) {
   let mut j = i
   let len = chars.length()
@@ -252,20 +270,18 @@ fn read_identifier(chars: Array[Char], i: Int) -> (Token, Int) {
     id_chars.push(chars[k])
   }
 
-  let id = String::from_array(id_chars)
-  return (Identifier(id), j)
+  return (Identifier(String::from_array(id_chars)), j)
 }
 
+// Read numeric literals (supports integers and floats)
 fn read_number(chars: Array[Char], i: Int) -> (Token, Int) {
   let mut j = i
   let len = chars.length()
 
-  // 读取整数部分
   while j < len && ('0' <= chars[j] && chars[j] <= '9') {
     j += 1
   }
 
-  // 检查小数点后是否还有数字
   if j < len && chars[j] == '.' {
     j += 1
     while j < len && ('0' <= chars[j] && chars[j] <= '9') {
@@ -273,13 +289,10 @@ fn read_number(chars: Array[Char], i: Int) -> (Token, Int) {
     }
   }
 
-  // 构建字符串
   let num_chars = []
   for k in i..<j {
     num_chars.push(chars[k])
   }
 
-  let num_str = String::from_array(num_chars)
-  return (Literal(num_str), j)
+  return (Literal(String::from_array(num_chars)), j)
 }
-

@@ -1,6 +1,27 @@
+// Value type used in template context
+pub enum Value {
+  IntValue(Int)                      // Integer value
+  BoolValue(Bool)                    // Boolean value
+  StrValue(String)                   // String value
+  ListValue(Array[Value])           // List of values
+}
+
+// Main render function: evaluates an AST expression with a given context
 fn render(expr: Expr, context: Map[String, Value]) -> String!JinjaError {
   match expr {
-    TextNode(s) => return s
+    // Render plain text with optional whitespace trimming
+    TextNode(s, strip_left, strip_right) => {
+      let mut out = s
+      if strip_left {
+        out = out.trim_start("").to_string()
+      }
+      if strip_right {
+        out = out.trim_end("").to_string()
+      }
+      return out
+    }
+
+    // Render variable with optional filter (e.g., {{ name | upper }})
     VariableNode(name) => {
       let parts = name.split("|").to_array()
       let var_name = parts[0].trim("").to_string()
@@ -20,7 +41,6 @@ fn render(expr: Expr, context: Map[String, Value]) -> String!JinjaError {
               Some(Upper) => return filter_upper(base)
               Some(Lower) => return filter_lower(base)
               Some(Trim) => return filter_trim(base)
-              // 可选：支持 | safe
               None => raise RenderError("Unknown filter: " + filter_name)
             }
           }
@@ -29,12 +49,17 @@ fn render(expr: Expr, context: Map[String, Value]) -> String!JinjaError {
       }
     }
 
+    // Literal strings or numbers
     LiteralNode(s) => return s
+
+    // Binary expressions like {{ a + b }}
     BinaryOp(lhs, op, rhs) => {
       let left = render!(lhs, context)
       let right = render!(rhs, context)
       return apply_operator!(left, op, right)
     }
+
+    // If conditional
     IfBlock(cond, then_body, else_body) => {
       let cond_val = eval_condition!(cond, context)
       if cond_val {
@@ -43,6 +68,8 @@ fn render(expr: Expr, context: Map[String, Value]) -> String!JinjaError {
         return render_sequence!(else_body, context)
       }
     }
+
+    // For loop rendering
     ForBlock(var, list_expr, body) => {
       let result = []
       let iterable = eval_list!(list_expr, context)
@@ -53,25 +80,58 @@ fn render(expr: Expr, context: Map[String, Value]) -> String!JinjaError {
       }
       return result.join("")
     }
+
+    // Render a sequence of expressions
     Sequence(exprs) => return render_sequence!(exprs, context)
+
+    // Include another template
     IncludeNode(filename) => {
       let tpl = load_template!(filename)
       let tokens = tokenize!(tpl)
       let ast = parse!(tokens)
       return render!(ast, context)
     }
+
+    // Block rendering (used in inheritance)
     BlockNode(_, body) => {
      return render_sequence!(body, context)
     }
+
+    // Template inheritance rendering
     ExtendsNode(parent, child_blocks) => {
       let parent_src = load_template!(parent)
       let parent_ast = parse!(tokenize!(parent_src))
       let merged = merge_blocks(parent_ast, child_blocks)
       return render!(merged, context)
     }
+
+    // Handle {% set var = value %} (stores value in context)
+    SetStmt(name, expr) => {
+      let value = eval_value!(expr, context)
+      context[name] = value
+      return ""  // 'set' produces no output
+    }
+
+    // Handle {% with var = value %} ... {% endwith %}
+    WithBlock(name, value_expr, body) => {
+      let value = eval_value!(value_expr, context)
+
+      // Copy current context into a new map
+      let new_ctx = Map::new()
+      for k in context.keys() {
+        match context.get(k) {
+          Some(v) => new_ctx[k] = v
+          None => ignore(0)
+        }
+      }
+      new_ctx[name] = value
+
+      return render_sequence!(body, new_ctx)
+    }
   }
 }
 
+// Render a list of expressions into a single string
 fn render_sequence(exprs: Array[Expr], context: Map[String, Value]) -> String!JinjaError {
   let result = []
   for expr in exprs {
@@ -80,6 +140,7 @@ fn render_sequence(exprs: Array[Expr], context: Map[String, Value]) -> String!Ji
   return result.join("")
 }
 
+// Convert a Value enum to a printable string
 fn value_to_string(v: Value) -> String {
   match v {
     IntValue(n) => return n.to_string()
@@ -89,7 +150,7 @@ fn value_to_string(v: Value) -> String {
   }
 }
 
-
+// Handle binary operators such as + and ==
 fn apply_operator(lhs: String, op: String, rhs: String) -> String!JinjaError {
   match op {
     "+" => return lhs + rhs
@@ -98,11 +159,13 @@ fn apply_operator(lhs: String, op: String, rhs: String) -> String!JinjaError {
   }
 }
 
+// Evaluate condition for if statements
 fn eval_condition(expr: Expr, context: Map[String, Value]) -> Bool!JinjaError {
   let result = render!(expr, context)
   return result != "" && result != "false"
 }
 
+// Evaluate an expression to a list (for for-loops)
 fn eval_list(expr: Expr, context: Map[String, Value]) -> Array[Value]!JinjaError {
   let key = expr_to_key(expr)
   match context.get(key) {
@@ -112,6 +175,7 @@ fn eval_list(expr: Expr, context: Map[String, Value]) -> Array[Value]!JinjaError
   }
 }
 
+// Extract string key from a VariableNode expression
 fn expr_to_key(expr: Expr) -> String {
   match expr {
     VariableNode(name) => return name
@@ -119,6 +183,7 @@ fn expr_to_key(expr: Expr) -> String {
   }
 }
 
+// Merge child blocks into parent template for inheritance
 fn merge_blocks(expr: Expr, overrides: Map[String, Array[Expr]]) -> Expr {
   match expr {
     BlockNode(name, _) => {
@@ -138,3 +203,8 @@ fn merge_blocks(expr: Expr, overrides: Map[String, Array[Expr]]) -> Expr {
   }
 }
 
+// Evaluate an expression into a Value (used in set/with)
+fn eval_value(expr: Expr, context: Map[String, Value]) -> Value!JinjaError {
+  let rendered = render!(expr, context)
+  return StrValue(rendered)  // Currently all set/with use string values
+}
