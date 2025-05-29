@@ -154,11 +154,11 @@ fn parse_tag_content(chars: Array[Char], i: Ref[Int], tokens: Ref[Array[Token]],
   let len = chars.length()
   println("parse_tag_content start at index \{i.val}, char = \{chars[i.val]}")
   while i.val < len {
-        // 🔁 跳过空白字符以便正确识别结尾符
+        //  跳过空白字符以便正确识别结尾符
     while i.val < len && (chars[i.val] == ' ' || chars[i.val] == '\n' || chars[i.val] == '\t') {
       i.val += 1
     }
-    // 🟢 检查是否遇到结束符（支持 -%} 和 -}}）
+    //  检查是否遇到结束符（支持 -%} 和 -}}）
     if i.val + 1 < len && chars[i.val] == end_marker[0] && chars[i.val + 1] == end_marker[1] {
       // 检查是否有 strip_left 标记
       let strip_left = i.val + 2 < len && chars[i.val - 1] == '-'
