@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block title %}Child Title{% endblock %}
+{% block content %}
+  {% set items = "a, b, c" %}
+  <ul>
+  {% for x in items | split(",") -%}
+    <li>{{ x | trim | upper }}</li>
+  {%- endfor %}
+  </ul>
+{% endblock %}

@@ -1,0 +1,7 @@
+{% set items = "alpha, beta, stop, gamma" %}
+<ul>
+{% for it in items | split(",") -%}
+  {% if it | trim == "stop" %}{% break %}{% endif %}
+  <li>{{ it | trim | upper }}</li>
+{%- endfor %}
+</ul>

@@ -1,0 +1,5 @@
+{% with msg = "<b>hi & bye</b>" %}
+<p>raw: {{ msg }}</p>
+<p>safe: {{ msg | safe }}</p>
+<p>esc: {{ msg | escape }}</p>
+{% endwith %}

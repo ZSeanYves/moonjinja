@@ -1,19 +1,22 @@
-<!-- 注意，此为最基础模板，如需更新添加内容自己导入新的 -->
+<!-- 这是一个 MoonbitJinja 示例模板 -->
+
 {% set title = "MoonBit" %}
-{% set items = "apple,banana,cherry" %}
+{% set items = "apple, banana, cherry" %}
 
 <h1>{{ title | upper }}</h1>
 
 <ul>
-{% for item in items.split(",") -%}
+{% for item in items | split(",") -%}
   <li>{{- item | trim -}}</li>
 {%- endfor %}
 </ul>
 
 {% with msg = "welcome" %}
-<p>Hello, {{ msg }}!</p>
+<p>Hello, {{ msg | upper }}!</p>
 {% endwith %}
 
 {% if title == "MoonBit" %}
 <p>This is rendered because the condition is true.</p>
+{% else %}
+<p>Condition is false.</p>
 {% endif %}
