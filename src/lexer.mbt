@@ -18,44 +18,25 @@ pub(all) enum Token {
 
 // Equality comparison for tokens
 
-///|
-impl Eq for Token with equal(self, other) {
-  match (self, other) {
-    (Text(s1), Text(s2)) => s1 == s2
-    (VarStart(a), VarStart(b)) => a == b
-    (VarEnd(a), VarEnd(b)) => a == b
-    (BlockStart(a), BlockStart(b)) => a == b
-    (BlockEnd(a), BlockEnd(b)) => a == b
-    (CommentStart, CommentStart) => true
-    (CommentEnd, CommentEnd) => true
-    (Identifier(s1), Identifier(s2)) => s1 == s2
-    (Literal(s1), Literal(s2)) => s1 == s2
-    (Operator(s1), Operator(s2)) => s1 == s2
-    (Delimiter(c1), Delimiter(c2)) => c1 == c2
-    (EOF, EOF) => true
-    _ => false
-  }
-}
-
 // Convert a token to its string representation (for debugging)
 
 ///|
-fn token_to_string(tok : Token) -> String {
-  match tok {
-    Text(s) => "Text(" + s + ")"
-    VarStart(strip) => "VarStart(" + strip.to_string() + ")"
-    VarEnd(strip) => "VarEnd(" + strip.to_string() + ")"
-    BlockStart(strip) => "BlockStart(" + strip.to_string() + ")"
-    BlockEnd(strip) => "BlockEnd(" + strip.to_string() + ")"
-    CommentStart => "CommentStart"
-    CommentEnd => "CommentEnd"
-    Identifier(s) => "Identifier(" + s + ")"
-    Literal(s) => "Literal(" + s + ")"
-    Operator(s) => "Operator(" + s + ")"          // ← 加上
-    Delimiter(c) => "Delimiter(" + c.to_string() + ")"  // ← 加上
-    EOF => "EOF"
-  }
-}
+//fn token_to_string(tok : Token) -> String {
+//  match tok {
+//    Text(s) => "Text(" + s + ")"
+//    VarStart(strip) => "VarStart(" + strip.to_string() + ")"
+//    VarEnd(strip) => "VarEnd(" + strip.to_string() + ")"
+//    BlockStart(strip) => "BlockStart(" + strip.to_string() + ")"
+//    BlockEnd(strip) => "BlockEnd(" + strip.to_string() + ")"
+//    CommentStart => "CommentStart"
+//    CommentEnd => "CommentEnd"
+//    Identifier(s) => "Identifier(" + s + ")"
+//    Literal(s) => "Literal(" + s + ")"
+//    Operator(s) => "Operator(" + s + ")"          // ← 加上
+//    Delimiter(c) => "Delimiter(" + c.to_string() + ")"  // ← 加上
+//    EOF => "EOF"
+//  }
+//}
 
 
 // Main lexer function: converts source string into a list of tokens
@@ -71,13 +52,13 @@ pub fn tokenize(source : String) -> Array[Token] raise JinjaError {
   }
   while i.val < len {
     let curr = chars[i.val]
-    println("tokenize: index=\{i.val}, char='\{curr}'")
+    //println("tokenize: index=\{i.val}, char='\{curr}'")
 
     // === Handle {{ (expression start) ===
     if i.val + 1 < len && curr == '{' && chars[i.val + 1] == '{' {
       let strip_right = i.val + 2 < len && chars[i.val + 2] == '-'
       tokens.val.push(VarStart(strip_right))
-      println("Detected VarStart (strip=\{strip_right}) at index \{i.val}")
+      //println("Detected VarStart (strip=\{strip_right}) at index \{i.val}")
       i.val += if strip_right { 3 } else { 2 }
       parse_expr_content(chars, i, tokens)
       continue
@@ -87,7 +68,7 @@ pub fn tokenize(source : String) -> Array[Token] raise JinjaError {
     if i.val + 1 < len && curr == '{' && chars[i.val + 1] == '%' {
       let strip_right = i.val + 2 < len && chars[i.val + 2] == '-'
       tokens.val.push(BlockStart(strip_right))
-      println("Detected BlockStart (strip=\{strip_right}) at index \{i.val}")
+      //println("Detected BlockStart (strip=\{strip_right}) at index \{i.val}")
       i.val += if strip_right { 3 } else { 2 }
       parse_block_content(chars, i, tokens)
       continue
@@ -96,7 +77,7 @@ pub fn tokenize(source : String) -> Array[Token] raise JinjaError {
     // === Handle {# (comment start) ===
     if i.val + 1 < len && curr == '{' && chars[i.val + 1] == '#' {
       tokens.val.push(CommentStart)
-      println("Detected CommentStart at index \{i.val}")
+      //println("Detected CommentStart at index \{i.val}")
       i.val += 2
       skip_comment_block(chars, i, tokens)
       continue
@@ -120,12 +101,12 @@ pub fn tokenize(source : String) -> Array[Token] raise JinjaError {
         text_chars.push(chars[k])
       }
       let text = String::from_array(text_chars)
-      println("Detected Text block: '\{text}'")
+      //println("Detected Text block: '\{text}'")
       tokens.val.push(Text(text))
     }
   }
   tokens.val.push(EOF)
-  println("Final token list: \{tokens.val.map(token_to_string)}")
+  //println("Final token list: \{tokens.val.map(token_to_string)}")
   return tokens.val
 }
 
@@ -178,7 +159,7 @@ fn parse_tag_content(
   end_marker : String,
 ) -> Unit raise JinjaError {
   let len = chars.length()
-  println("parse_tag_content start at index \{i.val}, char = \{chars[i.val]}")
+  //println("parse_tag_content start at index \{i.val}, char = \{chars[i.val]}")
   while i.val < len {
     // 跳过空白字符
     while i.val < len &&
@@ -237,7 +218,7 @@ fn parse_tag_content(
       // 标识符
       'a'..='z' | 'A'..='Z' | '_' => {
         let (ident, next_i) = parse_identifier(chars, i.val)
-        println("Parsed Identifier: \{ident}")
+        //println("Parsed Identifier: \{ident}")
         tokens.val.push(Identifier(ident))
         i.val = next_i
       }
@@ -245,7 +226,7 @@ fn parse_tag_content(
       // 字面量（字符串或数字）
       '0'..='9' | '"' | '\'' => {
         let (lit, next_i) = parse_literal(chars, i.val)
-        println("Parsed Literal: \{lit}")
+        //println("Parsed Literal: \{lit}")
         tokens.val.push(Literal(lit))
         i.val = next_i
       }
@@ -253,26 +234,26 @@ fn parse_tag_content(
       // 操作符
       '=' | '!' | '<' | '>' | '+' | '-' | '*' | '/' | '|' => {
         let (op, next_i) = parse_operator(chars, i.val)
-        println("Parsed Operator: \{op}")
+        //println("Parsed Operator: \{op}")
         tokens.val.push(Operator(op))
         i.val = next_i
       }
 
       // 符号
       '(' | ')' | ':' | '.' | ',' => {
-        println("Parsed Delimiter: \{c}")
+        //println("Parsed Delimiter: \{c}")
         tokens.val.push(Delimiter(c))
         i.val += 1
       }
 
       // 其他非法字符
       _ => {
-        println("Unexpected character: \{c}")
+        //println("Unexpected character: \{c}")
         raise LexerError("Unexpected character in tag")
       }
     }
     if i.val < len {
-      println("No end marker at index \{i.val}, char = \{chars[i.val]}")
+      //println("No end marker at index \{i.val}, char = \{chars[i.val]}")
     }
   }
   raise LexerError("Unterminated tag content")

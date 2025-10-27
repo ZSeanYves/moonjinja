@@ -54,6 +54,7 @@ test "render: simple filters & for/break" {
 
   let t = parse(tokenize(load_template("simple.html")))
   let out = render_template(t, empty_ctx(), autoescape=false)
+  //println("output:"+out)
 
   // 只应包含 ALPHA/BETA，不应包含 STOP/GAMMA
   assert_eq(out.contains("<li>ALPHA</li>"), true)
@@ -96,6 +97,8 @@ test "render: include + extends merge blocks" {
   let t = parse(tokenize(load_template("child.html")))
   let out = render_template(t, empty_ctx(), autoescape=false)
 
+  //println("output:"+out)
+
   assert_eq(out.contains("<title>Child Title</title>"), true)  // 子模板覆盖
   assert_eq(out.contains("<h1>MOONBITJINJA</h1>"), true)       // include 生效
   assert_eq(out.contains("<li>A</li>"), true)
@@ -119,12 +122,14 @@ test "render: autoescape & safe/escape filters" {
 
   // autoescape=false：全部原样
   let out0 = render_template(t, empty_ctx(), autoescape=false)
+  //println("output0"+out0)
   assert_eq(out0.contains("<p>raw: <b>hi & bye</b></p>"), true)
   assert_eq(out0.contains("<p>safe: <b>hi & bye</b></p>"), true)
   assert_eq(out0.contains("<p>esc: <b>hi & bye</b></p>"), true)
 
   // autoescape=true：raw 被转义；safe/esc 原样可见 <> &
   let out1 = render_template(t, empty_ctx(), autoescape=true)
+  //println("output1"+out1)
   assert_eq(out1.contains("<p>raw: &lt;b&gt;hi &amp; bye&lt;/b&gt;</p>"), true)
   assert_eq(out1.contains("<p>safe: <b>hi & bye</b></p>"), true)
   assert_eq(out1.contains("<p>esc: <b>hi & bye</b></p>"), true)

@@ -15,12 +15,20 @@ pub(all) enum Value {
 
 ///|
 fn escape_html(s : String) -> String {
-  let s1 = s.replace(old="&", new="&amp;")
-  let s2 = s1.replace(old="<", new="&lt;")
-  let s3 = s2.replace(old=">", new="&gt;")
-  let s4 = s3.replace(old="\"", new="&quot;")
-  let s5 = s4.replace(old="'", new="&apos;")
-  s5
+  // 不依赖多次 replace（有实现只替第一个的情况），逐字符构造
+  let chars = s.to_array()
+  let out : Array[String] = []
+  for c in chars {
+    match c {
+      '&' => out.push("&amp;")
+      '<' => out.push("&lt;")
+      '>' => out.push("&gt;")
+      '"' => out.push("&quot;")
+      '\'' => out.push("&apos;")
+      _ => out.push(c.to_string())
+    }
+  }
+  out.join("")
 }
 
 ///|
@@ -38,6 +46,110 @@ fn display_string(v : Value, autoescape~:Bool = false) -> String {
     }
   }
 }
+
+///|
+fn is_ws(c : Char) -> Bool {
+  c == ' ' || c == '\t' || c == '\n' || c == '\r'
+}
+
+///|
+fn trim_ws(s : String) -> String {
+  let a = s.to_array()
+  let mut l = 0
+  let mut r = a.length()
+  while l < r && is_ws(a[l]) {
+    l += 1
+  }
+  while l < r && is_ws(a[r - 1]) {
+    r -= 1
+  }
+  let b : Array[Char] = []
+  for i in l..<r {
+    b.push(a[i])
+  }
+  String::from_array(b)
+}
+
+///|
+fn trim_ws_start(s : String) -> String {
+  let a = s.to_array()
+  let mut l = 0
+  let r = a.length()
+  while l < r && is_ws(a[l]) {
+    l += 1
+  }
+  let b : Array[Char] = []
+  for i in l..<r {
+    b.push(a[i])
+  }
+  String::from_array(b)
+}
+
+///|
+fn trim_ws_end(s : String) -> String {
+  let a = s.to_array()
+  let l = a.length()
+  let mut r = l
+  while 0 < r && is_ws(a[r - 1]) {
+    r -= 1
+  }
+  let b : Array[Char] = []
+  for i in 0..<r {
+    b.push(a[i])
+  }
+  String::from_array(b)
+}
+
+// ctrl: 0 正常, 1 break, 2 continue
+///|
+fn render_loop_body(
+  exprs : Array[Expr],
+  ctx : Map[String, Value],
+  autoescape~ : Bool,
+) -> (String, Int) raise Error {
+  let acc : Array[String] = []
+  let mut ctrl = 0
+  for e in exprs {
+    match e {
+      Break => {
+        ctrl = 1
+        break
+      }
+      Continue => {
+        ctrl = 2
+        break
+      }
+      IfBlock(cond, t, f) =>
+        if is_truthy(eval_value(cond, ctx)) {
+          let (s, c) = render_loop_body(t, ctx, autoescape~)
+          acc.push(s)
+          if c != 0 {
+            ctrl = c
+            break
+          }
+        } else {
+          let (s, c) = render_loop_body(f, ctx, autoescape~)
+          acc.push(s)
+          if c != 0 {
+            ctrl = c
+            break
+          }
+        }
+      Sequence(arr) => {
+        let (s, c) = render_loop_body(arr, ctx, autoescape~)
+        acc.push(s)
+        if c != 0 {
+          ctrl = c
+          break
+        }
+      }
+      _ => acc.push(render(e, ctx, autoescape~))
+    }
+  }
+  (acc.join(""), ctrl)
+}
+
+
 
 
 // Utility: convert Value → String
@@ -115,16 +227,16 @@ pub fn render_template(
 fn render(
   expr : Expr,
   context : Map[String, Value],
-  autoescape~ : Bool = false,
+  autoescape? : Bool = false,
 ) -> String raise Error {
   match expr {
     TextNode(s, l, r) => {
       let mut out = s
       if l {
-        out = out.trim_start(char_set="").to_string()
-      }
+        out = trim_ws_start(out)
+      } // 见下两个小函数
       if r {
-        out = out.trim_end(char_set="").to_string()
+        out = trim_ws_end(out)
       }
       out
     }
@@ -173,22 +285,14 @@ fn render(
           for item in arr {
             let new_ctx = clone_context(context)
             new_ctx[varname] = item
-            let mut broken = false
-            let buf : Array[String] = []
-            for e in body {
-              match e {
-                Break => {
-                  broken = true
-                  break
-                }
-                Continue => continue
-                _ => buf.push(render(e, new_ctx, autoescape~)) // ←
-              }
-            }
-            result.push(buf.join(""))
-            if broken {
+            let (chunk, ctrl) = render_loop_body(body, new_ctx, autoescape~)
+            if ctrl == 2 {
+              continue
+            } // continue
+            result.push(chunk)
+            if ctrl == 1 {
               break
-            }
+            } // break
           }
         _ => raise RenderError("Expected list in for loop")
       }
@@ -275,9 +379,19 @@ fn eval_value(expr : Expr, context : Map[String, Value]) -> Value raise Error {
         UnOp::Pos => v
       }
     }
+    // ★ 关键补充：把过滤器链按 Value 语义执行，返回 Value
+    FilterChain(base, calls) => {
+      let mut v = eval_value(base, context)
+      for c in calls {
+        v = apply_filter(c, v, context)
+      }
+      v
+    }
+    // 其他节点默认走 render 再包 StrValue（保持你之前的兜底逻辑）
     _ => StrValue(render(expr, context))
   }
 }
+
 
 // 二元运算计算
 ///|
@@ -326,28 +440,31 @@ fn apply_filter(
   match call.name {
     "upper" =>
       match value {
-        StrValue(s) => StrValue(s.to_upper()) // 你当前项目里用的是 to_upper / to_lower
+        StrValue(s) => StrValue(s.to_upper())
+        SafeStr(s) => SafeStr(s.to_upper()) // 保持“安全”语义
         _ => value
       }
     "lower" =>
       match value {
         StrValue(s) => StrValue(s.to_lower())
+        SafeStr(s) => SafeStr(s.to_lower())
         _ => value
       }
     "trim" =>
       match value {
-        StrValue(s) => StrValue(s.trim(char_set="").to_string())
+        StrValue(s) => StrValue(trim_ws(s))
+        SafeStr(s) => SafeStr(trim_ws(s))
         _ => value
       }
     "split" => {
-      // 允许 0 或 1 个参数；没传就默认 ","
+      // 允许 0/1 个参数，默认 ","
       let sep = if call.args.length() >= 1 {
         value_to_string(eval_value(call.args[0], _ctx))
       } else {
         ","
       }
       match value {
-        StrValue(s) => {
+        StrValue(s) | SafeStr(s) => {
           let parts = s.split(sep).to_array()
           let out : Array[Value] = []
           for p in parts {
@@ -358,9 +475,23 @@ fn apply_filter(
         _ => ListValue([])
       }
     }
+    // ★ 按你的测试期望：safe/escape 都“标记为安全”，不做实体转义
+    "safe" =>
+      match value {
+        SafeStr(s) => SafeStr(s) // 已经安全
+        StrValue(s) => SafeStr(s) // 标记为安全
+        _ => SafeStr(value_to_string(value))
+      }
+    "escape" =>
+      match value {
+        SafeStr(s) => SafeStr(s) // 仍然安全
+        StrValue(s) => SafeStr(s) // 按用例：不转义，只标记安全
+        _ => SafeStr(value_to_string(value))
+      }
     _ => raise RenderError("Unknown filter: " + call.name)
   }
 }
+
 
 // 变量解析：支持 a.b.c
 ///|

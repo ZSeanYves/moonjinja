@@ -119,23 +119,23 @@ fn is_var_end(t : Token) -> Bool {
   }
 }
 
-///|
+///|调试用，
 fn parse_fail(
-  i : Ref[Int],
-  tokens : Array[Token],
-  len : Int,
+  _i : Ref[Int],
+  _tokens : Array[Token],
+  _len : Int,
   msg : String,
 ) ->String raise JinjaError {
-  let from = if i.val >= 3 { i.val - 3 } else { 0 }
-  let to = if i.val + 3 < len { i.val + 3 } else { len - 1 }
+  //let from = if i.val >= 3 { i.val - 3 } else { 0 }
+  //let to = if i.val + 3 < len { i.val + 3 } else { len - 1 }
 
   // 收集并拼成一行
-  let near : Array[String] = []
-  for k in from..=to {
-    near.push(token_to_string(tokens[k]))
-  }
-  println("PARSE ERROR at index=\{i.val}")
-  println("NEAR TOKENS: [" + near.join(", ") + "]")
+  //let near : Array[String] = []
+  //for k in from..=to {
+  //  near.push(token_to_string(tokens[k]))
+  //}
+  ////println("PARSE ERROR at index=\{i.val}")
+  ////println("NEAR TOKENS: [" + near.join(", ") + "]")
   raise ParseError(msg)
 }
 
@@ -497,16 +497,27 @@ fn parse_primary(
 // ==================== Expression Lists ====================
 
 ///|
+//fn debug_token_at(tokens : Array[Token], len : Int, idx : Int) -> String {
+//  if idx < 0 || idx >= len {
+//    "<out-of-range>"
+//  } else {
+//    token_to_string(tokens[idx])
+//  }
+//}
+
+///|
 fn parse_expr_list(
   tokens : Array[Token],
   i : Ref[Int],
   len : Int,
 ) -> Array[Expr] raise JinjaError {
-  println("parse_expr_list @ token: " + token_to_string(tokens[i.val]))
   let out : Array[Expr] = Array::new()
   while i.val < len {
     let cur = tokens[i.val]
     match cur {
+      EOF => {
+        return out
+      }
       VarStart(_) => {
         i.val += 1
         let e = parse_expr(tokens, i, len)
@@ -522,11 +533,12 @@ fn parse_expr_list(
           match tokens[i.val + 1] {
             Identifier(id) =>
               if id == "endif" ||
-                id == "endfor" ||
-                id == "endwith" ||
-                id == "endblock" ||
-                id == "else" {
-                break
+                 id == "endfor" ||
+                 id == "endwith" ||
+                 id == "endblock" ||
+                 id == "else" ||
+                 id == "elif" {
+                return out
               }
             _ => ()
           }
@@ -564,8 +576,8 @@ fn parse_expr_list(
               i.val += 1
               out.push(Expr::Break)
             } else if id == "continue" {
-              i.val += 1
-              i.val += 1
+              i.val += 1 // {%
+              i.val += 1 // continue
               if i.val >= len || not(is_block_end(tokens[i.val])) {
                 raise ParseError("Expected '%}' after continue")
               }
@@ -589,10 +601,7 @@ fn parse_expr_list(
 
 
 
-
-
 // ==================== Block Parsers ====================
-
 ///|
 fn parse_if_block(
   tokens : Array[Token],
