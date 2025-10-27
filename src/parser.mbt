@@ -497,22 +497,55 @@ fn parse_primary(
 // ==================== Expression Lists ====================
 
 ///|
+fn debug_token_at(tokens : Array[Token], len : Int, idx : Int) -> String {
+  if idx < 0 || idx >= len {
+    "<out-of-range>"
+  } else {
+    token_to_string(tokens[idx])
+  }
+}
+
+///|
 fn parse_expr_list(
   tokens : Array[Token],
   i : Ref[Int],
   len : Int,
 ) -> Array[Expr] raise JinjaError {
-  println("parse_expr_list @ token: " + token_to_string(tokens[i.val]))
+  let dbg_tok = if i.val < len {
+    token_to_string(tokens[i.val])
+  } else {
+    "<eof>"
+  }
+  println("parse_expr_list @ token: " + dbg_tok)
   let out : Array[Expr] = Array::new()
   while i.val < len {
     let cur = tokens[i.val]
     match cur {
+      EOF => {
+        println(
+          "parse_expr_list: reached EOF sentinel at index=" + i.val.to_string() +
+          ", returning with exprs=" + out.length().to_string(),
+        )
+        return out
+      }
       VarStart(_) => {
+        println(
+          "parse_expr_list: saw VarStart at index=" + i.val.to_string() +
+          ", next=" + debug_token_at(tokens, len, i.val + 1),
+        )
         i.val += 1
         let e = parse_expr(tokens, i, len)
         if i.val >= len || not(is_var_end(tokens[i.val])) {
+          println(
+            "parse_expr_list: missing VarEnd at index=" + i.val.to_string() +
+            ", got=" + debug_token_at(tokens, len, i.val),
+          )
           raise ParseError("Expected '}}' to close variable tag")
         }
+        println(
+          "parse_expr_list: closing VarEnd at index=" + i.val.to_string() +
+          ", token=" + debug_token_at(tokens, len, i.val),
+        )
         i.val += 1
         out.push(e)
       }
@@ -525,8 +558,13 @@ fn parse_expr_list(
                 id == "endfor" ||
                 id == "endwith" ||
                 id == "endblock" ||
-                id == "else" {
-                break
+                id == "else" ||
+                id == "elif" {
+                println(
+                  "parse_expr_list: encountered closing tag '" + id +
+                  "' at index=" + i.val.to_string() + " — returning",
+                )
+                return out
               }
             _ => ()
           }
@@ -537,47 +575,96 @@ fn parse_expr_list(
         match tokens[i.val + 1] {
           Identifier(id) =>
             if id == "if" {
+              println(
+                "parse_expr_list: dispatch if-block at index=" + i.val.to_string(),
+              )
               let e = parse_if_block(tokens, i, len)
               out.push(e)
             } else if id == "for" {
+              println(
+                "parse_expr_list: dispatch for-block at index=" + i.val.to_string(),
+              )
               let e = parse_for_block(tokens, i, len)
               out.push(e)
             } else if id == "with" {
+              println(
+                "parse_expr_list: dispatch with-block at index=" + i.val.to_string(),
+              )
               let e = parse_with_block(tokens, i, len)
               out.push(e)
             } else if id == "include" {
+              println(
+                "parse_expr_list: dispatch include at index=" + i.val.to_string(),
+              )
               let e = parse_include(tokens, i, len)
               out.push(e)
             } else if id == "block" {
+              println(
+                "parse_expr_list: dispatch block at index=" + i.val.to_string(),
+              )
               let e = parse_block(tokens, i, len)
               out.push(e)
             } else if id == "set" {
+              println(
+                "parse_expr_list: dispatch set at index=" + i.val.to_string(),
+              )
               let e = parse_set_block(tokens, i, len)
               out.push(e)
             } else if id == "break" {
               // 期望：BlockStart(_), Identifier("break"), BlockEnd(_)
+              println(
+                "parse_expr_list: dispatch break at index=" + i.val.to_string(),
+              )
               i.val += 1 // {%
               i.val += 1 // break
               if i.val >= len || not(is_block_end(tokens[i.val])) {
+                println(
+                  "parse_expr_list: missing BlockEnd after break at index=" +
+                  i.val.to_string() + ", got=" + debug_token_at(tokens, len, i.val),
+                )
                 raise ParseError("Expected '%}' after break")
               }
+              println(
+                "parse_expr_list: closing break at index=" + i.val.to_string() +
+                ", token=" + debug_token_at(tokens, len, i.val),
+              )
               i.val += 1
               out.push(Expr::Break)
             } else if id == "continue" {
+              println(
+                "parse_expr_list: dispatch continue at index=" +
+                i.val.to_string(),
+              )
               i.val += 1
               i.val += 1
               if i.val >= len || not(is_block_end(tokens[i.val])) {
+                println(
+                  "parse_expr_list: missing BlockEnd after continue at index=" +
+                  i.val.to_string() + ", got=" + debug_token_at(tokens, len, i.val),
+                )
                 raise ParseError("Expected '%}' after continue")
               }
+              println(
+                "parse_expr_list: closing continue at index=" + i.val.to_string() +
+                ", token=" + debug_token_at(tokens, len, i.val),
+              )
               i.val += 1
               out.push(Expr::Continue)
             } else {
+              println(
+                "parse_expr_list: unknown block tag '" + id + "' at index=" +
+                i.val.to_string(),
+              )
               raise ParseError("Unknown block tag")
             }
           _ => raise ParseError("Expected block identifier after '{%'")
         }
       }
       _ => {
+        println(
+          "parse_expr_list: parsing primary token=" +
+          debug_token_at(tokens, len, i.val) + " at index=" + i.val.to_string(),
+        )
         let e = parse_primary(tokens, i, len)
         out.push(e)
       }

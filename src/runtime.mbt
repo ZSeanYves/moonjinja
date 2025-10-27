@@ -339,6 +339,20 @@ fn apply_filter(
         StrValue(s) => StrValue(s.trim(char_set="").to_string())
         _ => value
       }
+    "safe" =>
+      match value {
+        SafeStr(s) => SafeStr(s)
+        StrValue(s) => SafeStr(s)
+        v => SafeStr(value_to_string(v))
+      }
+    "escape" => {
+      let raw = match value {
+        SafeStr(s) => s
+        StrValue(s) => s
+        v => value_to_string(v)
+      }
+      SafeStr(escape_html(raw))
+    }
     "split" => {
       // 允许 0 或 1 个参数；没传就默认 ","
       let sep = if call.args.length() >= 1 {
