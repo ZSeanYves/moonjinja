@@ -1,42 +1,8 @@
-
-
-// 简易工具：确保目录存在
-fn ensure_dir(path : String) -> Unit raise @fs.IOError {
-  if !@fs.path_exists(path) {
-    @fs.create_dir(path)
-  }
-}
-
-// 简易工具：写模板到 src/templates/...
-fn write_tpl(name : String, content : String) -> Unit raise @fs.IOError {
-  let root = "src/templates"
-  ensure_dir(root)
-  let parts = name.split("/").to_array()
-  let mut acc = root
-  // 逐级创建子目录
-  if parts.length() > 1 {
-    for i in 0..<(parts.length() - 1) {
-      acc = acc + "/" + parts[i].to_string()
-      ensure_dir(acc)
-    }
-  }
-  let full = root + "/" + name
-  @fs.write_string_to_file(full, content, encoding="utf8")
-}
-
 // 快捷：空上下文
 fn empty_ctx() -> Map[String, Value] {
   Map::new()
 }
 
-// 快捷：嵌套上下文 { user: { name: "moon" } }
-pub fn nested_ctx() -> Map[String, Value] {
-  let inner = Map::new()
-  inner["name"] = Value::StrValue("moon")
-  let ctx = Map::new()
-  ctx["user"] = Value::MapValue(inner)
-  ctx
-}
 
 ///| --- tokenize/parse/smoke 渲染 ---
 test "render: simple filters & for/break" {
@@ -52,7 +18,7 @@ test "render: simple filters & for/break" {
 
   write_tpl("simple.html", tpl)
 
-  let t = parse(tokenize(load_template("simple.html")))
+  let t = parse(tokenize(load_template(name ="simple.html")))
   let out = render_template(t, empty_ctx(), autoescape=false)
   //println("output:"+out)
 
@@ -94,7 +60,7 @@ test "render: include + extends merge blocks" {
     "{% endblock %}\n"
   )
 
-  let t = parse(tokenize(load_template("child.html")))
+  let t = parse(tokenize(load_template(name = "child.html")))
   let out = render_template(t, empty_ctx(), autoescape=false)
 
   //println("output:"+out)
@@ -118,7 +84,7 @@ test "render: autoescape & safe/escape filters" {
     "{% endwith %}\n"
   )
 
-  let t = parse(tokenize(load_template("esc.html")))
+  let t = parse(tokenize(load_template(name ="esc.html")))
 
   // autoescape=false：全部原样
   let out0 = render_template(t, empty_ctx(), autoescape=false)
@@ -133,4 +99,26 @@ test "render: autoescape & safe/escape filters" {
   assert_eq(out1.contains("<p>raw: &lt;b&gt;hi &amp; bye&lt;/b&gt;</p>"), true)
   assert_eq(out1.contains("<p>safe: <b>hi & bye</b></p>"), true)
   assert_eq(out1.contains("<p>esc: <b>hi & bye</b></p>"), true)
+}
+
+///|
+test "render: built-in example template" {
+  // 默认模板 = example.html
+  let t = parse(tokenize(load_template()))
+  let out = render_template(t, empty_ctx(), autoescape=true)
+
+  // 检查继承与 include 是否生效
+  assert_eq(out.contains("<h1>MOONBITJINJA</h1>"), true)
+  assert_eq(out.contains("<title>MoonBitJinja Example</title>"), true)
+
+  // 检查 for + break 正常（stop 后终止）
+  assert_eq(out.contains("<li>ALPHA</li>"), true)
+  assert_eq(out.contains("<li>BETA</li>"), true)
+  assert_eq(out.contains("STOP"), false)
+  assert_eq(out.contains("GAMMA"), false)
+
+  // 检查 autoescape / safe / escape
+  assert_eq(out.contains("&lt;b&gt;hi &amp; bye&lt;/b&gt;"), true)
+  assert_eq(out.contains("<p>safe: <b>hi & bye</b></p>"), true)
+  assert_eq(out.contains("<p>esc: <b>hi & bye</b></p>"), true)
 }

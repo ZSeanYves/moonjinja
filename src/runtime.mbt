@@ -31,6 +31,15 @@ fn escape_html(s : String) -> String {
   out.join("")
 }
 
+// 快捷：嵌套上下文 { user: { name: "moon" } }
+///|
+pub fn nested_ctx() -> Map[String, Value] {
+  let inner = Map::new()
+  inner["name"] = Value::StrValue("moon")
+  let ctx = Map::new()
+  ctx["user"] = Value::MapValue(inner)
+  ctx
+}
 ///|
 fn display_string(v : Value, autoescape~:Bool = false) -> String {
   match v {
@@ -196,22 +205,22 @@ fn template_body_as_expr(t : Template) -> Expr {
 pub fn render_template(
   tpl : Template,
   context : Map[String, Value],
-  autoescape~ : Bool = false
+  autoescape? : Bool = false,
 ) -> String raise Error {
   match tpl.parent {
-    None => render_sequence(tpl.body, context, autoescape=autoescape)
+    None => render_sequence(tpl.body, context, autoescape~)
     Some(parent_name) => {
-      let parent_src = load_template(parent_name)
+      let parent_src = load_template(name=parent_name)
       let tokens = tokenize(parent_src)
       let parent_tpl = parse(tokens)
       let child_blocks = collect_blocks(tpl.body)
       let parent_expr = template_body_as_expr(parent_tpl)
       let merged_expr = merge_blocks(parent_expr, child_blocks)
       match parent_tpl.parent {
-        None => render(merged_expr, context, autoescape=autoescape)
+        None => render(merged_expr, context, autoescape~)
         Some(_) => {
           let next_tpl = { parent: parent_tpl.parent, body: [merged_expr] }
-          render_template(next_tpl, context, autoescape=autoescape)
+          render_template(next_tpl, context, autoescape~)
         }
       }
     }
@@ -299,7 +308,7 @@ fn render(
       result.join("")
     }
     IncludeNode(filename) => {
-      let src = load_template(filename)
+      let src = load_template(name=filename)
       let included_tpl = parse(tokenize(src))
       render_template(included_tpl, context, autoescape~) // ←
     }
@@ -379,7 +388,6 @@ fn eval_value(expr : Expr, context : Map[String, Value]) -> Value raise Error {
         UnOp::Pos => v
       }
     }
-    // ★ 关键补充：把过滤器链按 Value 语义执行，返回 Value
     FilterChain(base, calls) => {
       let mut v = eval_value(base, context)
       for c in calls {
@@ -387,7 +395,6 @@ fn eval_value(expr : Expr, context : Map[String, Value]) -> Value raise Error {
       }
       v
     }
-    // 其他节点默认走 render 再包 StrValue（保持你之前的兜底逻辑）
     _ => StrValue(render(expr, context))
   }
 }
@@ -475,7 +482,6 @@ fn apply_filter(
         _ => ListValue([])
       }
     }
-    // ★ 按你的测试期望：safe/escape 都“标记为安全”，不做实体转义
     "safe" =>
       match value {
         SafeStr(s) => SafeStr(s) // 已经安全

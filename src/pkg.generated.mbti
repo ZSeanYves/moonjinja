@@ -1,0 +1,111 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "ZSeanYves/moonjinja"
+
+import(
+  "moonbitlang/x/fs"
+)
+
+// Values
+fn ensure_dir(String) -> Unit raise @fs.IOError
+
+fn load_template(name? : String) -> String raise
+
+fn nested_ctx() -> Map[String, Value]
+
+fn parse(Array[Token]) -> Template raise JinjaError
+
+fn render_template(Template, Map[String, Value], autoescape? : Bool) -> String raise
+
+fn tokenize(String) -> Array[Token] raise JinjaError
+
+fn write_tpl(String, String) -> Unit raise @fs.IOError
+
+// Errors
+type JinjaError
+
+// Types and methods
+pub(all) enum BinOp {
+  Add
+  Sub
+  Mul
+  Div
+  FloorDiv
+  Mod
+  Eq
+  Ne
+  Lt
+  Le
+  Gt
+  Ge
+  And
+  Or
+}
+
+pub struct Call {
+  name : String
+  args : Array[Expr]
+}
+
+pub(all) enum Expr {
+  TextNode(String, Bool, Bool)
+  RawText(String)
+  Var(VarPath)
+  Literal(Value)
+  Unary(UnOp, Expr)
+  Binary(Expr, BinOp, Expr)
+  FilterChain(Expr, Array[Call])
+  IfBlock(Expr, Array[Expr], Array[Expr])
+  ForBlock(String, Expr, Array[Expr])
+  IncludeNode(String)
+  BlockNode(String, Array[Expr])
+  SetStmt(String, Expr)
+  WithBlock(Map[String, Expr], Array[Expr])
+  Break
+  Continue
+  Sequence(Array[Expr])
+}
+
+pub struct Template {
+  parent : String?
+  body : Array[Expr]
+}
+
+pub(all) enum Token {
+  Text(String)
+  VarStart(Bool)
+  VarEnd(Bool)
+  BlockStart(Bool)
+  BlockEnd(Bool)
+  CommentStart
+  CommentEnd
+  Identifier(String)
+  Literal(String)
+  Operator(String)
+  Delimiter(Char)
+  EOF
+}
+
+pub(all) enum UnOp {
+  Not
+  Neg
+  Pos
+}
+
+pub(all) enum Value {
+  Null
+  IntValue(Int)
+  BoolValue(Bool)
+  StrValue(String)
+  SafeStr(String)
+  ListValue(Array[Value])
+  MapValue(Map[String, Value])
+}
+
+pub struct VarPath {
+  parts : Array[String]
+}
+
+// Type aliases
+
+// Traits
+

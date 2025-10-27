@@ -1,22 +1,21 @@
-<!-- 这是一个 MoonbitJinja 示例模板 -->
+{% extends "base.html" %}
 
-{% set title = "MoonBit" %}
-{% set items = "apple, banana, cherry" %}
+{% block title %}MoonBitJinja Example{% endblock %}
 
-<h1>{{ title | upper }}</h1>
+{% block content %}
+  {% set items = "alpha, beta, stop, gamma" %}
+  <ul>
+  {% for it in items | split(",") %}
+    {% if it | trim == "stop" %}
+      {% break %}
+    {% endif %}
+    <li>{{ it | trim | upper }}</li>
+  {% endfor %}
+  </ul>
 
-<ul>
-{% for item in items | split(",") -%}
-  <li>{{- item | trim -}}</li>
-{%- endfor %}
-</ul>
-
-{% with msg = "welcome" %}
-<p>Hello, {{ msg | upper }}!</p>
-{% endwith %}
-
-{% if title == "MoonBit" %}
-<p>This is rendered because the condition is true.</p>
-{% else %}
-<p>Condition is false.</p>
-{% endif %}
+  {% with msg = "<b>hi & bye</b>" %}
+  <p>raw: {{ msg }}</p>
+  <p>safe: {{ msg | safe }}</p>
+  <p>esc: {{ msg | escape }}</p>
+  {% endwith %}
+{% endblock %}

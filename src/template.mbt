@@ -3,7 +3,7 @@
 const TEMPLATE_ROOT : String = "src/templates"
 
 // 入口：按名称加载模板内容
-pub fn load_template(name : String) -> String raise Error {
+pub fn load_template(name~ : String= "example.html") -> String raise Error {
   let norm = normalize_name(name)                 // 1) 规范化
   ensure_safe_name(norm)                                  // 2) 基础安全检查
   let full = join_path(TEMPLATE_ROOT, norm)       // 3) 拼绝对路径
@@ -115,3 +115,26 @@ fn read_text_file(path : String) -> String raise Error {
   @fs.read_file_to_string(path, encoding="utf8")
 }
 
+// 简易工具：确保目录存在
+pub fn ensure_dir(path : String) -> Unit raise @fs.IOError {
+  if !@fs.path_exists(path) {
+    @fs.create_dir(path)
+  }
+}
+
+// 简易工具：写模板到 src/templates/...
+pub fn write_tpl(name : String, content : String) -> Unit raise @fs.IOError {
+  let root = "src/templates"
+  ensure_dir(root)
+  let parts = name.split("/").to_array()
+  let mut acc = root
+  // 逐级创建子目录
+  if parts.length() > 1 {
+    for i in 0..<(parts.length() - 1) {
+      acc = acc + "/" + parts[i].to_string()
+      ensure_dir(acc)
+    }
+  }
+  let full = root + "/" + name
+  @fs.write_string_to_file(full, content, encoding="utf8")
+}
