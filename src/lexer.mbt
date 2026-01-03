@@ -170,8 +170,8 @@ fn parse_tag_content(
     // ==== 新增：优先匹配 "-%}" / "-}}" （当前位置是 '-'）====
     if i.val + 2 < len &&
       chars[i.val] == '-' &&
-      chars[i.val + 1].to_int() == end_marker[0] &&
-      chars[i.val + 2].to_int() == end_marker[1] {
+      chars[i.val + 1].to_int() == end_marker[0].to_int() &&
+      chars[i.val + 2].to_int() == end_marker[1].to_int() {
       // 这是 strip-left 的结束
       tokens.val.push(
         if end_marker == "}}" {
@@ -186,8 +186,8 @@ fn parse_tag_content(
 
     // ==== 原有：匹配 "%}" / "}}" （当前位置是 end_marker[0]）====
     if i.val + 1 < len &&
-      chars[i.val].to_int() == end_marker[0] &&
-      chars[i.val + 1].to_int() == end_marker[1] {
+      chars[i.val].to_int() == end_marker[0].to_int() &&
+      chars[i.val + 1].to_int() == end_marker[1].to_int() {
       // 是否有 strip-left（前一位是 '-'）
       let strip_left = i.val > 0 && chars[i.val - 1] == '-'
       if strip_left {

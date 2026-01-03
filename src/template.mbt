@@ -63,8 +63,8 @@ fn ensure_safe_name(norm : String) -> Unit raise JinjaError {
   // Windows 盘符：C: 或 d:
   if norm.length() >= 2 &&
     (
-      ('A'.to_int() <= norm[0] && norm[0] <= 'Z'.to_int()) ||
-      ('a'.to_int() <= norm[0] && norm[0] <= 'z'.to_int())
+      ('A'.to_int() <= norm[0].to_int() && norm[0].to_int() <= 'Z'.to_int()) ||
+      ('a'.to_int() <= norm[0].to_int() && norm[0].to_int() <= 'z'.to_int())
     ) &&
     norm[1] == ':' {
     raise RenderError("Drive-letter paths are not allowed")

@@ -1,8 +1,8 @@
 {
   "name": "ZSeanYves/moonjinja",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "deps": {
-    "moonbitlang/x": "0.4.35"
+    "moonbitlang/x": "0.4.38"
   },
   "readme": "README.md",
   "repository": "https://github.com/ZSeanYves/moonjinja.git",
